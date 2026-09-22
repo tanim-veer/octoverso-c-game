@@ -3,7 +3,12 @@
 #include "time.h"
 
 enum {
-    MAX_CARTES = 88,
+    NB_LETTRES_DISTINCTES = 21,
+    // MAX_CARTES doit Ãªtre la somme exacte des occurrences ci-dessous (9+1+2+3+14+1+1+5+7+1
+    // +5+3+6+5+7+6+7+6+5+1+2 = 97) : c'est la taille rÃ©elle du paquet, utilisÃ©e pour allouer
+    // son tampon. Une valeur trop petite ici provoquait un dÃ©passement de tas (heap overflow)
+    // dans initPaquet, qui remplissait bien plus de cases que le tampon n'en rÃ©servait.
+    MAX_CARTES = 97,
 };
 
 typedef struct {
@@ -16,7 +21,7 @@ typedef struct {
     int reste;
 } Paquet;
 
-const static Lettre lettre[MAX_CARTES] = {
+const static Lettre lettre[NB_LETTRES_DISTINCTES] = {
     {9, 'A'},
     {1, 'B'},
     {2, 'C'},
@@ -41,26 +46,26 @@ const static Lettre lettre[MAX_CARTES] = {
 };
 
 /**
- * @brief Initialise un paquet de lettres selon les fréquences de chaque lettre.
- * @param[out] p L'adresse du paquet à initialiser.
+ * @brief Initialise un paquet de lettres selon les frï¿½quences de chaque lettre.
+ * @param[out] p L'adresse du paquet ï¿½ initialiser.
  */
 void initPaquet(Paquet* p);
 
 /**
- * @brief Mélange les lettres dans le paquet de manière aléatoire.
- * @param[in,out] p Le paquet à mélanger.
+ * @brief Mï¿½lange les lettres dans le paquet de maniï¿½re alï¿½atoire.
+ * @param[in,out] p Le paquet ï¿½ mï¿½langer.
  */
 void melangerPaquet(Paquet* p);
 
 /**
- * @brief Distribue des lettres aux joueurs à partir du paquet.
+ * @brief Distribue des lettres aux joueurs ï¿½ partir du paquet.
  * @param[in,out] p Le paquet de lettres.
- * @param[in,out] j Le joueur à qui distribuer les lettres.
+ * @param[in,out] j Le joueur ï¿½ qui distribuer les lettres.
  */
 void distribuerPaquet(Paquet* p, Joueur* j);
 
 /**
- * @brief Détermine quel joueur a le mot le plus faible.
+ * @brief Dï¿½termine quel joueur a le mot le plus faible.
  * @param[in] j1 Le premier joueur.
  * @param[in] j2 Le second joueur.
  * @return L'indice du joueur ayant le mot le plus faible (0 ou 1).
@@ -68,8 +73,8 @@ void distribuerPaquet(Paquet* p, Joueur* j);
 int determinerPremierJoueur(Joueur* j1, Joueur* j2);
 
 /**
- * @brief Affiche l'état actuel du paquet.
- * @param[in] p Le paquet à afficher.
+ * @brief Affiche l'ï¿½tat actuel du paquet.
+ * @param[in] p Le paquet ï¿½ afficher.
  */
 void afficherPaquet(Paquet* p);
 
@@ -77,35 +82,35 @@ void afficherPaquet(Paquet* p);
  * @brief Affiche la situation actuelle du jeu (mains des joueurs et rails).
  * @param[in] j1 Le premier joueur.
  * @param[in] j2 Le second joueur.
- * @param[in] r Le rail à afficher.
+ * @param[in] r Le rail ï¿½ afficher.
  */
 void afficherSituation(Joueur* j1, Joueur* j2, Rail* r);
 
 /**
  * @brief Pioche une lettre du paquet.
- * @param[in,out] p Le paquet à partir duquel la lettre est piochée.
- * @return La lettre piochée.
- * @pre Le paquet ne doit pas être vide.
+ * @param[in,out] p Le paquet ï¿½ partir duquel la lettre est piochï¿½e.
+ * @return La lettre piochï¿½e.
+ * @pre Le paquet ne doit pas ï¿½tre vide.
  */
 char piocherLettreduPaquet(Paquet* p);
 
 /**
  * @brief Retire une lettre du paquet.
- * @param[in,out] p Le paquet à modifier.
- * @param[in] lettre La lettre à retirer.
+ * @param[in,out] p Le paquet ï¿½ modifier.
+ * @param[in] lettre La lettre ï¿½ retirer.
  */
 void retirerLettrePaquet(Paquet* p, char lettre);
 
 /**
- * @brief Vérifie si le paquet est vide.
- * @param[in] p Le paquet à vérifier.
+ * @brief Vï¿½rifie si le paquet est vide.
+ * @param[in] p Le paquet ï¿½ vï¿½rifier.
  * @return 1 si le paquet est vide, 0 sinon.
  */
 int estVidePaquet(Paquet* p);
 
 /**
- * @brief Permet à un joueur d'échanger une lettre avec le paquet.
- * @param[in,out] j Le joueur qui échange une lettre.
- * @param[in,out] p Le paquet avec lequel le joueur échange.
+ * @brief Permet ï¿½ un joueur d'ï¿½changer une lettre avec le paquet.
+ * @param[in,out] j Le joueur qui ï¿½change une lettre.
+ * @param[in,out] p Le paquet avec lequel le joueur ï¿½change.
  */
 void echangeChevalet(Joueur* j, Paquet* p);

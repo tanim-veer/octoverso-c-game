@@ -5,7 +5,7 @@
 #include <stdio.h>
 #pragma warning (disable: 4996 6031)
 
-// Initialisation du paquet
+// Initialise le paquet avec le bon nombre d'exemplaires de chaque lettre, puis le mélange.
 void initPaquet(Paquet* p) {
     p->reste = 0;
     p->chevalet = malloc(MAX_CARTES * sizeof(char));
@@ -15,19 +15,21 @@ void initPaquet(Paquet* p) {
         return;
     }
 
-    // Remplir le chevalet avec les lettres
-    for (int i = 0; i < sizeof(lettre) / sizeof(lettre[0]); i++) {
+    // Remplir le paquet avec les lettres (NB_LETTRES_DISTINCTES entrées seulement : le
+    // tableau `lettre` ne contient pas MAX_CARTES entrées, mais un exemplaire par lettre
+    // distincte avec sa fréquence).
+    for (int i = 0; i < NB_LETTRES_DISTINCTES; i++) {
         for (int j = 0; j < lettre[i].nombre; j++) {
             p->chevalet[p->reste++] = lettre[i].lettre;
         }
     }
-    melangerPaquet(p);  // M�lange les lettres
+    melangerPaquet(p);
 }
 
-// M�lange al�atoire du paquet
+// Mélange aléatoirement le paquet (Fisher-Yates). Le générateur aléatoire est initialisé
+// une seule fois par le programme (dans main), pas ici.
 void melangerPaquet(Paquet* p) {
-    srand(time(NULL));  // Initialisation du random
-    for (int i = 0; i < p->reste; i++) {
+    for (int i = p->reste - 1; i > 0; i--) {
         int j = rand() % (i + 1);
         char tmp = p->chevalet[j];
         p->chevalet[j] = p->chevalet[i];
@@ -35,37 +37,35 @@ void melangerPaquet(Paquet* p) {
     }
 }
 
-// Distribue des lettres au joueur
+// Distribue jusqu'à CHEVALETS lettres au joueur, en s'arrêtant si le paquet se vide avant.
 void distribuerPaquet(Paquet* p, Joueur* j) {
     for (int i = 0; i < CHEVALETS; i++) {
-        j->chevalet[i] = piocherLettreduPaquet(p);  // Pioche une lettre
+        char l = piocherLettreduPaquet(p);
+        if (l == '\0') break;
+        ajouterLettreMain(j, l);
     }
 }
 
-// D�termine quel joueur commence
+// Détermine quel joueur commence : celui dont le mot d'ouverture est alphabétiquement le plus petit.
 int determinerPremierJoueur(Joueur* j1, Joueur* j2) {
     return strcmp(j1->mot, j2->mot) < 0 ? 0 : 1;
 }
 
-
-// Comparaison utilis�e pour trier les caract�res dans l'ordre alphab�tique
+// Comparaison utilisée pour trier les caractères dans l'ordre alphabétique.
 int comparer2lettres(const void* a, const void* b) {
     return (*(char*)a - *(char*)b);
 }
 
-// Affiche le paquet
+// Affiche le paquet trié par ordre alphabétique (utile pour le débogage / suivi de partie).
 void afficherPaquet(Paquet* p) {
-    // Trier le paquet dans l'ordre alphab�tique
     qsort(p->chevalet, p->reste, sizeof(char), comparer);
-
-    // Afficher le paquet tri�
     for (int i = 0; i < p->reste; i++) {
         printf("%c ", p->chevalet[i]);
     }
     printf("\n");
 }
 
-// Affiche la situation du jeu
+// Affiche l'état complet de la partie : main des deux joueurs et rail partagé.
 void afficherSituation(Joueur* j1, Joueur* j2, Rail* r) {
     printf("1 : ");
     afficherMainJoueur(j1);
@@ -77,46 +77,50 @@ void afficherSituation(Joueur* j1, Joueur* j2, Rail* r) {
     afficherRailVerso(r);
 }
 
-// Pioche une lettre du paquet
+// Pioche et retire la dernière lettre du paquet ('\0' si le paquet est vide).
 char piocherLettreduPaquet(Paquet* p) {
     if (p->reste == 0) {
         return '\0';
     }
-    return p->chevalet[p->reste--];
+    p->reste--;
+    return p->chevalet[p->reste];
 }
 
-// Retire une lettre du paquet
+// Retire une lettre précise du paquet, en décalant les lettres suivantes pour combler le trou.
 void retirerLettrePaquet(Paquet* p, char lettre) {
-    int trouve = 0;
     for (int i = 0; i < p->reste; i++) {
         if (p->chevalet[i] == lettre) {
-            trouve = 1;
-        }
-        if (trouve && i < p->reste - 1) {
-            p->chevalet[i] = p->chevalet[i + 1];
-        }
-    }
-
-    if (trouve) {
-        p->reste--;
-        char* temp = realloc(p->chevalet, p->reste * sizeof(char));
-        if (temp == NULL && p->reste > 0) {
-            printf("Erreur de r�allocation m�moire : retirerLettrePaquet\n");
+            for (int k = i; k < p->reste - 1; k++) {
+                p->chevalet[k] = p->chevalet[k + 1];
+            }
+            p->reste--;
             return;
         }
-        p->chevalet = temp;
     }
 }
 
-// V�rifie si le paquet est vide
+// Vérifie si le paquet est vide.
 int estVidePaquet(Paquet* p) {
     return p->reste == 0;
 }
 
-// �change une lettre entre le joueur et le paquet
+// Échange une lettre de la main du joueur contre une nouvelle lettre piochée dans le paquet.
 void echangeChevalet(Joueur* j, Paquet* p) {
     char lettre;
-    scanf("%c", &lettre);
-    retirerLettreMain(j, lettre);  // Retirer de la main du joueur
-    piocherLettreduPaquet(p, j);  // Pioche une nouvelle lettre
+    if (scanf(" %c", &lettre) != 1) return;
+
+    int possede = 0;
+    for (int i = 0; i < CHEVALETS; i++) {
+        if (j->chevalet[i] == lettre) {
+            possede = 1;
+            break;
+        }
+    }
+    if (!possede) return;
+
+    retirerLettreMain(j, lettre);
+    char nouvelle = piocherLettreduPaquet(p);
+    if (nouvelle != '\0') {
+        ajouterLettreMain(j, nouvelle);
+    }
 }

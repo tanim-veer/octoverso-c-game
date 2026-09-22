@@ -5,9 +5,11 @@
 #include <string.h>
 #pragma warning (disable: 4996 6031)
 
-// Initialise un joueur : alloue et initialise son chevalet.
+// Initialise un joueur : alloue un chevalet de taille FIXE (CHEVALETS cases), rempli d'espaces.
+// Le chevalet ne change plus jamais de taille : ' ' marque une case vide, une lettre marque une case occup√©e.
 void initJoueur(Joueur* j) {
     j->reste = 0;
+    j->mot[0] = '\0';
     j->chevalet = malloc(CHEVALETS * sizeof(char));
     if (j->chevalet == NULL) {
         printf("Erreur d'allocation memoire : initJoueur\n");
@@ -18,46 +20,68 @@ void initJoueur(Joueur* j) {
     }
 }
 
-// Propose un mot de 4 lettres, vÈrifie sa validitÈ et met ‡ jour le chevalet et le rail.
-int proposerMots4Lettres(Joueur* j) {
-    char mot[MOT4];
-    scanf("%s", mot);
-    if (strlen(mot) == 4 && verifMots(j, mot) == 1) {
-        for (int i = 0; i < MOT4; i++) {
-            ajouterLettreRailGauche(j, mot[i]);
-            retirerLettreMain(j, mot[i]);
+// V√©rifie que toutes les lettres de `mot` sont disponibles dans le chevalet, sans consommer
+// deux fois la m√™me case (une lettre du chevalet ne peut servir qu'une fois par mot).
+int mainContientMot(Joueur* j, const char* mot) {
+    char copie[CHEVALETS];
+    memcpy(copie, j->chevalet, CHEVALETS);
+
+    for (int i = 0; mot[i] != '\0'; i++) {
+        int trouve = 0;
+        for (int k = 0; k < CHEVALETS; k++) {
+            if (copie[k] == mot[i]) {
+                copie[k] = ' ';
+                trouve = 1;
+                break;
+            }
         }
-        return 1;
+        if (!trouve) return 0;
     }
-    else {
+    return 1;
+}
+
+// Propose un mot de 4 lettres : v√©rifie qu'il est bien dans la main et valide selon le
+// dictionnaire, puis le pose sur le rail partag√© (c√¥t√© gauche) et retire les lettres jou√©es.
+int proposerMots4Lettres(Joueur* j, Rail* rail) {
+    char mot[MOT4];
+    if (scanf(" %4s", mot) != 1) return 0;
+
+    if (strlen(mot) != 4 || !mainContientMot(j, mot) || !verifMots(j, mot)) {
         return 0;
     }
+
+    for (int i = 0; i < 4; i++) {
+        ajouterLettreRailGauche(rail, mot[i]);
+        retirerLettreMain(j, mot[i]);
+    }
+
+    strncpy(j->mot, mot, MOT4);
+    j->mot[MOT4 - 1] = '\0';
+    return 1;
 }
 
-// Propose un mot de 2 lettres et met ‡ jour le rail du joueur.
-void propose2Lettres(Joueur* j) {
-    char input[LETTRE2 + MOT4];
-    scanf("%s", input);
+// Propose 2 lettres √† ajouter sur le rail partag√©, du c√¥t√© choisi par le joueur.
+// Format attendu : "<direction> <2 lettres>", direction = G (gauche) ou D (droite).
+// Exemple : "D AB" ajoute A puis B du c√¥t√© droit du rail.
+int propose2Lettres(Joueur* j, Rail* rail) {
+    char direction;
+    char lettres[LETTRE2];
+    if (scanf(" %c %2s", &direction, lettres) != 2) return 0;
+    if (strlen(lettres) != 2 || !mainContientMot(j, lettres)) return 0;
 
-    // Analyse et ajoute les lettres au rail en fonction de la direction.
-    if (sscanf(input, "R (%*s) %2s", input) == 1 || sscanf(input, "V (%*s) %2s", input) == 1) {
-        ajouterLettreRailDroite(&j->rail, input[0]);
-        retirerLettreMain(j, input[0]);
-        ajouterLettreRailDroite(&j->rail, input[1]);
-        retirerLettreMain(j, input[1]);
-    }
-    else if (sscanf(input, "R %2s (%*s)", input) == 1 || sscanf(input, "V %2s (%*s)", input) == 1) {
-        ajouterLettreRailGauche(&j->rail, input[0]);
-        retirerLettreMain(j, input[0]);
-        ajouterLettreRailGauche(&j->rail, input[1]);
-        retirerLettreMain(j, input[1]);
-    }
-    if (sscanf(input, "R %8s", input) == 1 || sscanf(input, "V %8s", input) == 1) {
-        proposerOctoVerso(j);
-    }
+    void (*ajouter)(Rail*, char) =
+        (direction == 'D' || direction == 'd') ? ajouterLettreRailDroite : ajouterLettreRailGauche;
+
+    ajouter(rail, lettres[0]);
+    retirerLettreMain(j, lettres[0]);
+    ajouter(rail, lettres[1]);
+    retirerLettreMain(j, lettres[1]);
+    return 1;
 }
 
-// VÈrifie si le mot proposÈ par le joueur est valide en le comparant avec un dictionnaire.
+// V√©rifie si le mot propos√© figure dans le dictionnaire externe ods4.txt et n'a pas d√©j√†
+// √©t√© jou√©. Le tampon de lecture n'est PAS le tampon `mot` fourni par l'appelant : on ne
+// doit jamais √©craser le mot propos√© pendant qu'on le compare au dictionnaire.
 int verifMots(Joueur* j, char* mot) {
     FILE* fic = fopen("ods4.txt", "r");
     if (fic == NULL) {
@@ -65,67 +89,55 @@ int verifMots(Joueur* j, char* mot) {
         return 0;
     }
 
-    char motJoueur[MOT4];
-    int idx = 0;
-    // Remplit le mot joueur ‡ partir de son chevalet
-    for (int i = 0; i < CHEVALETS; i++) {
-        if (j->chevalet[i] != ' ') {
-            motJoueur[idx++] = j->chevalet[i];
-        }
-    }
-    motJoueur[idx] = '\0';
-
-    // VÈrifie si le mot existe dans le dictionnaire
+    char motDico[32];
     int trouve = 0;
-    while (fscanf(fic, "%s", mot) != EOF) {
-        if (strcmp(mot, motJoueur) == 0) {
+    while (fscanf(fic, "%31s", motDico) != EOF) {
+        if (strcmp(motDico, mot) == 0) {
             trouve = 1;
-            return;
+            break;
         }
     }
-
     fclose(fic);
-    return trouve && verifMotDejaJouer(j) == 1;
+
+    if (!trouve) return 0;
+    return verifMotDejaJouer(j, mot);
 }
 
-// VÈrifie si le mot a dÈj‡ ÈtÈ jouÈ par le joueur.
-int verifMotDejaJouer(Joueur* j) {
-    static char motsJoues[100][MOT4];
+// V√©rifie si un mot a d√©j√† √©t√© jou√© (par n'importe quel joueur) durant la partie.
+int verifMotDejaJouer(Joueur* j, const char* mot) {
+    (void)j; // gard√© dans la signature pour coh√©rence d'API, non n√©cessaire √† la v√©rification
+    static char motsJoues[100][32];
     static int index = 0;
 
-    // VÈrifie si le mot a dÈj‡ ÈtÈ jouÈ
     for (int i = 0; i < index; i++) {
-        if (strcmp(motsJoues[i], j->mot) == 0) {
+        if (strcmp(motsJoues[i], mot) == 0) {
             return 0;
         }
     }
 
-    // Ajoute le mot ‡ la liste des mots jouÈs
-    strncpy(motsJoues[index], j->mot, MOT4);
-    motsJoues[index][MOT4 - 1] = '\0';
-    index++;
+    if (index < 100) {
+        strncpy(motsJoues[index], mot, 31);
+        motsJoues[index][31] = '\0';
+        index++;
+    }
     return 1;
 }
 
-// Affiche les lettres restantes du chevalet du joueur.
+// Affiche les lettres du chevalet du joueur, tri√©es par ordre alphab√©tique.
 void afficherMainJoueur(Joueur* j) {
     char copie[CHEVALETS];
-    for (int i = 0; i < CHEVALETS; i++) {
-        copie[i] = j->chevalet[i];
-    }
+    memcpy(copie, j->chevalet, CHEVALETS);
 
-    // Trier la copie par ordre alphabÈtique
     for (int i = 0; i < CHEVALETS - 1; i++) {
-        for (int j = i + 1; j < CHEVALETS; j++) {
-            if (copie[i] > copie[j]) {
+        for (int k = i + 1; k < CHEVALETS; k++) {
+            if (copie[i] > copie[k]) {
                 char temp = copie[i];
-                copie[i] = copie[j];
-                copie[j] = temp;
+                copie[i] = copie[k];
+                copie[k] = temp;
             }
         }
     }
 
-    // Afficher les lettres triÈes 
     for (int i = 0; i < CHEVALETS; i++) {
         if (copie[i] != ' ') {
             printf("%c", copie[i]);
@@ -134,51 +146,29 @@ void afficherMainJoueur(Joueur* j) {
     printf("\n");
 }
 
-// Retire une lettre du chevalet du joueur.
+// Retire une occurrence de `lettre` du chevalet (chevalet de taille fixe, pas de r√©allocation).
 void retirerLettreMain(Joueur* j, char lettre) {
-    int trouve = 0;
     for (int i = 0; i < CHEVALETS; i++) {
         if (j->chevalet[i] == lettre) {
             j->chevalet[i] = ' ';
-            trouve = 1;
-        }
-    }
-
-    if (trouve) {
-        j->reste--;
-        char* temp = realloc(j->chevalet, j->reste * sizeof(char));
-        if (temp == NULL && j->reste > 0) {
-            printf("Erreur de reallocation de memoire : retirerLettreMain\n");
+            j->reste--;
             return;
         }
-        j->chevalet = temp;
     }
 }
 
-// Ajoute une lettre au chevalet du joueur.
+// Ajoute une lettre dans la premi√®re case libre du chevalet (chevalet de taille fixe).
 void ajouterLettreMain(Joueur* j, char lettre) {
-    int placeTrouvee = 0;
-    for (int i = 0; i < j->reste; i++) {
+    for (int i = 0; i < CHEVALETS; i++) {
         if (j->chevalet[i] == ' ') {
             j->chevalet[i] = lettre;
-            placeTrouvee = 1;
+            j->reste++;
             return;
         }
-    }
-
-    if (!placeTrouvee) {
-        j->reste++;
-        char* temp = realloc(j->chevalet, j->reste * sizeof(char));
-        if (temp == NULL) {
-            printf("Erreur de reallocation de memoire : ajouterLettreMain\n");
-            return;
-        }
-        j->chevalet = temp;
-        j->chevalet[j->reste - 1] = lettre;
     }
 }
 
-// VÈrifie si le chevalet du joueur est vide.
+// V√©rifie si le chevalet du joueur est vide.
 int estVideMain(Joueur* j) {
     for (int i = 0; i < CHEVALETS; i++) {
         if (j->chevalet[i] != ' ') {
@@ -188,25 +178,30 @@ int estVideMain(Joueur* j) {
     return 1;
 }
 
-// Propose un mot de 8 lettres pour l'octo verso et met ‡ jour le chevalet et le rail.
-void proposerOctoVerso(Joueur* j) {
+// Propose un mot de 8 lettres (Octo Verso) sur le rail partag√© (c√¥t√© droit).
+int proposerOctoVerso(Joueur* j, Rail* rail) {
     char mot[MOT8];
-    if (strlen(mot) == 8 && verifMots(j, mot) == 1) {
-        for (int i = 0; i < MOT8; i++) {
-            ajouterLettreRailDroite(j, mot[i]);
-            retirerLettreMain(j, mot[i]);
-        }
+    if (scanf(" %8s", mot) != 1) return 0;
+    if (strlen(mot) != 8 || !mainContientMot(j, mot) || !verifMots(j, mot)) return 0;
+
+    for (int i = 0; i < 8; i++) {
+        ajouterLettreRailDroite(rail, mot[i]);
+        retirerLettreMain(j, mot[i]);
     }
-    return;
+    return 1;
 }
 
-// Propose un mot de 8 lettres pour l'octo adversaire.
-void proposerOctoAdversaire(Joueur* j, Joueur* adversaire) {
+// Variante Octo Verso : le joueur pose un mot de 8 lettres en piochant les lettres
+// depuis la main de son adversaire plut√¥t que la sienne.
+int proposerOctoAdversaire(Joueur* j, Joueur* adversaire, Rail* rail) {
+    (void)j;
     char mot[MOT8];
-    if (strlen(mot) == 8 && verifMots(j, mot) == 1) {
-        for (int i = 0; i < MOT8; i++) {
-            ajouterLettreRailDroite(&adversaire->rail, mot[i]);
-            retirerLettreMain(j, mot[i]);
-        }
+    if (scanf(" %8s", mot) != 1) return 0;
+    if (strlen(mot) != 8 || !mainContientMot(adversaire, mot) || !verifMots(adversaire, mot)) return 0;
+
+    for (int i = 0; i < 8; i++) {
+        ajouterLettreRailDroite(rail, mot[i]);
+        retirerLettreMain(adversaire, mot[i]);
     }
+    return 1;
 }
