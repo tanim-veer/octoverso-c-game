@@ -4,87 +4,40 @@ enum {
     TAILLE_RAIL = 8,
 };
 
+// Rail de 8 tuiles double face. Seul le recto est stockÃ© : retourner le rail inverse l'ordre
+// de lecture, donc le verso est le recto lu de droite Ã  gauche.
 typedef struct {
-    char* recto;
-    char* verso;
-    int size_recto;
-    int size_verso;
-    int capacite_recto;
-    int capacite_verso;
+    char recto[TAILLE_RAIL + 1];
 } Rail;
 
 /**
- * @brief Agrandit la taille d'un rail si nécessaire.
- * @param[in,out] rail Le rail à agrandir.
- * @param[in,out] size La taille actuelle du rail.
- * @param[in,out] capacite La capacité actuelle du rail.
- * @pre Le rail peut être agrandi si nécessaire.
+ * @brief Forme le rail Ã  partir des deux mots d'ouverture (4 lettres chacun).
+ * @param[out] r Le rail Ã  initialiser.
+ * @param[in] gauche Le mot placÃ© Ã  gauche.
+ * @param[in] droite Le mot placÃ© Ã  droite.
  */
-void augmenterTailleRail(char** rail, int* size, int* capacite);
+void initRail(Rail* r, const char* gauche, const char* droite);
 
 /**
- * @brief Initialise un rail avec une taille et une capacité données.
- * @param[out] r L'adresse du rail à initialiser.
+ * @brief Lit une face du rail.
+ * @param[in] r Le rail.
+ * @param[in] face 'R' pour le recto, 'V' pour le verso.
+ * @param[out] sortie Tampon d'au moins TAILLE_RAIL + 1 caractÃ¨res.
  */
-void initRail(Rail* r);
+void lireFace(const Rail* r, char face, char* sortie);
 
 /**
- * @brief Compare deux caractères pour un tri alphabétique.
- * @param[in] a Premier caractère à comparer.
- * @param[in] b Deuxième caractère à comparer.
- * @return Valeur entière indiquant l'ordre des caractères.
+ * @brief Affiche le recto et le verso du rail.
+ * @param[in] r Le rail Ã  afficher.
  */
-int comparer(const void* a, const void* b);
+void afficherRail(const Rail* r);
 
 /**
- * @brief Affiche les lettres du rail recto du joueur.
- * @param[in] r Le rail à afficher.
+ * @brief Fait entrer des lettres par un bord d'une face : autant de tuiles sortent par le bord opposÃ©.
+ * @param[in,out] r Le rail.
+ * @param[in] face 'R' ou 'V'.
+ * @param[in] aGauche 1 pour faire entrer les lettres par la gauche de la face, 0 par la droite.
+ * @param[in] lettres Les lettres Ã  faire entrer (entre 1 et TAILLE_RAIL).
+ * @param[out] expulsees ReÃ§oit les tuiles sorties du rail (tampon d'au moins TAILLE_RAIL + 1).
  */
-void afficherRailRecto(Rail* r);
-
-/**
- * @brief Affiche les lettres du rail verso du joueur.
- * @param[in] r Le rail à afficher.
- */
-void afficherRailVerso(Rail* r);
-
-/**
- * @brief Ajoute une lettre sur le rail gauche (recto ou verso).
- * @param[in,out] r Le rail auquel ajouter la lettre.
- * @param[in] lettre La lettre à ajouter.
- */
-void ajouterLettreRailGauche(Rail* r, char lettre);
-
-/**
- * @brief Ajoute une lettre sur le rail droit (recto ou verso).
- * @param[in,out] r Le rail auquel ajouter la lettre.
- * @param[in] lettre La lettre à ajouter.
- */
-void ajouterLettreRailDroite(Rail* r, char lettre);
-
-/**
- * @brief Retire une lettre du rail gauche (recto ou verso).
- * @param[in,out] r Le rail duquel retirer la lettre.
- * @param[in] lettre La lettre à retirer.
- */
-void retirerLettreRailGauche(Rail* r, char lettre);
-
-/**
- * @brief Retire une lettre du rail droit (recto ou verso).
- * @param[in,out] r Le rail duquel retirer la lettre.
- * @param[in] lettre La lettre à retirer.
- */
-void retirerLettreRailDroite(Rail* r, char lettre);
-
-/**
- * @brief Vide le contenu des rails (recto et verso).
- * @param[in,out] r Le rail à vider.
- */
-void viderRail(Rail* r);
-
-/**
- * @brief Vérifie si les rails (recto et verso) sont pleins.
- * @param[in] r Le rail à vérifier.
- * @return 1 si les rails sont pleins, 0 sinon.
- */
-int estPlein(Rail* r);
+void glisserSurRail(Rail* r, char face, int aGauche, const char* lettres, char* expulsees);

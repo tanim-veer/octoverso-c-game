@@ -2,107 +2,84 @@
 #include "rail.h"
 
 enum {
-	CHEVALETS = 12,
+	CHEVALETS = 12,        // lettres distribuées à chaque joueur en début de partie
+	CAPACITE_MAIN = 80,    // une main grossit (tuiles reçues, pioches) : au plus 88 tuiles - 8 sur le rail
 	MOT4 = 5,
-	LETTRE2 = 3,
-	MOT8 = 9,
+	MOT_MAX = TAILLE_RAIL + 1,
 };
 
 typedef struct {
-	char* chevalet;
-	int reste;
-	char mot[MOT4];
+	char* chevalet;        // CAPACITE_MAIN cases, ' ' = case vide
+	int reste;             // nombre de lettres en main
+	char mot[MOT4];        // mot d'ouverture
 } Joueur;
 
 /**
- * @brief Initialise un joueur avec un chevalet de taille fixe (CHEVALETS cases), vide.
- * @param[out] j L'adresse du joueur à initialiser.
+ * @brief Initialise un joueur avec une main vide.
+ * @param[out] j Le joueur à initialiser.
  */
 void initJoueur(Joueur* j);
 
 /**
- * @brief Vérifie que toutes les lettres de `mot` sont bien disponibles dans le chevalet du joueur.
- * @param[in] j Le joueur dont on vérifie le chevalet.
- * @param[in] mot Le mot à vérifier.
- * @return 1 si toutes les lettres sont disponibles, 0 sinon.
+ * @brief Libère la mémoire de la main du joueur.
+ * @param[in,out] j Le joueur.
  */
-int mainContientMot(Joueur* j, const char* mot);
+void libererJoueur(Joueur* j);
 
 /**
- * @brief Propose un mot de 4 lettres à partir du chevalet du joueur et le pose sur le rail partagé.
- * @param[in] j Le joueur qui propose le mot.
- * @param[in,out] rail Le rail partagé sur lequel poser le mot.
- * @return 1 si le mot est valide et a été joué, 0 sinon.
+ * @brief Vérifie que toutes les lettres de `mot` sont dans la main (chaque tuile ne sert qu'une fois).
+ * @return 1 si le joueur possède toutes les lettres, 0 sinon.
  */
-int proposerMots4Lettres(Joueur* j, Rail* rail);
+int mainContientMot(const Joueur* j, const char* mot);
 
 /**
- * @brief Propose 2 lettres à ajouter sur le rail partagé.
- * @param[in] j Le joueur qui propose les lettres.
- * @param[in,out] rail Le rail partagé sur lequel ajouter les lettres.
- * @pre Entrée attendue au format "<direction> <2 lettres>" (direction : G ou D).
- * @return 1 si les lettres ont été posées, 0 si le coup a été refusé.
+ * @brief Joue le mot d'ouverture (4 lettres de la main, présent dans le dictionnaire).
+ * @param[in,out] j Le joueur.
+ * @param[in] saisie Le mot saisi (majuscules ou minuscules).
+ * @return 1 si le mot est accepté, 0 sinon.
  */
-int propose2Lettres(Joueur* j, Rail* rail);
+int jouerMotOuverture(Joueur* j, const char* saisie);
 
 /**
- * @brief Vérifie si le mot proposé est valide selon le dictionnaire externe (ods4.txt)
- * et n'a pas déjà été joué durant la partie.
- * @param[in] j Le joueur qui propose le mot.
- * @param[in] mot Le mot à vérifier.
- * @return 1 si le mot est valide, 0 sinon.
+ * @brief Joue un coup "R (AB)CDE" ou "R CDE(AB)" (R ou V selon la face du rail).
+ * Les lettres entre parenthèses viennent de la main et entrent dans le rail par ce bord ; les
+ * autres doivent correspondre au bord de la face. Les tuiles poussées hors du rail sont défaussées.
+ * @param[in,out] j Le joueur.
+ * @param[in,out] rail Le rail.
+ * @param[in] coup Le coup saisi.
+ * @return 0 si le coup est refusé, 1 s'il est joué, 2 si c'est un Octo Verso (mot de 8 lettres).
  */
-int verifMots(Joueur* j, char* mot);
+int jouerCoup(Joueur* j, Rail* rail, const char* coup);
 
 /**
- * @brief Vérifie si un mot a déjà été joué durant la partie.
- * @param[in] j Le joueur qui propose le mot (non utilisé pour la vérification, gardé pour cohérence d'API).
- * @param[in] mot Le mot à vérifier.
- * @return 1 si le mot n'a pas déjà été joué, 0 sinon.
+ * @brief Vérifie que le mot figure dans le dictionnaire ods4.txt.
+ * @return 1 si le mot existe, 0 sinon.
  */
-int verifMotDejaJouer(Joueur* j, const char* mot);
+int verifMots(const char* mot);
 
 /**
- * @brief Affiche les lettres du chevalet du joueur, triées par ordre alphabétique.
- * @param[in] j Le joueur dont on affiche la main.
+ * @brief Vérifie qu'un mot n'a pas déjà été joué, et l'enregistre comme joué.
+ * @return 1 si le mot est nouveau, 0 s'il a déjà été joué.
  */
-void afficherMainJoueur(Joueur* j);
+int verifMotDejaJouer(const char* mot);
 
 /**
- * @brief Retire une occurrence d'une lettre du chevalet du joueur.
- * @param[in,out] j Le joueur dont la lettre sera retirée.
- * @param[in] lettre La lettre à retirer.
+ * @brief Affiche les lettres de la main, triées par ordre alphabétique.
+ */
+void afficherMainJoueur(const Joueur* j);
+
+/**
+ * @brief Retire une occurrence d'une lettre de la main.
  */
 void retirerLettreMain(Joueur* j, char lettre);
 
 /**
- * @brief Ajoute une lettre dans la première case libre du chevalet du joueur.
- * @param[in,out] j Le joueur qui reçoit la lettre.
- * @param[in] lettre La lettre à ajouter.
+ * @brief Ajoute une lettre dans la première case libre de la main.
  */
 void ajouterLettreMain(Joueur* j, char lettre);
 
 /**
  * @brief Vérifie si la main du joueur est vide.
- * @param[in] j Le joueur à vérifier.
  * @return 1 si la main est vide, 0 sinon.
  */
-int estVideMain(Joueur* j);
-
-/**
- * @brief Permet à un joueur de proposer un mot de 8 lettres (Octo Verso) sur le rail partagé.
- * @param[in] j Le joueur qui propose le mot.
- * @param[in,out] rail Le rail partagé sur lequel poser le mot.
- * @return 1 si le mot a été posé, 0 si le coup a été refusé.
- */
-int proposerOctoVerso(Joueur* j, Rail* rail);
-
-/**
- * @brief Variante de l'Octo Verso : le joueur pose un mot de 8 lettres en piochant les
- * lettres depuis la main de son adversaire plutôt que la sienne.
- * @param[in] j Le joueur qui propose le mot.
- * @param[in,out] adversaire L'adversaire dont la main est utilisée.
- * @param[in,out] rail Le rail partagé sur lequel poser le mot.
- * @return 1 si le mot a été posé, 0 si le coup a été refusé.
- */
-int proposerOctoAdversaire(Joueur* j, Joueur* adversaire, Rail* rail);
+int estVideMain(const Joueur* j);

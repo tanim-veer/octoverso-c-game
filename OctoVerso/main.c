@@ -7,146 +7,119 @@
 #include "paquet.h"
 #pragma warning (disable: 4996 6031)
 
-// Complète la main du joueur jusqu'à CHEVALETS lettres en piochant dans le paquet.
-static void completerMain(Joueur* j, Paquet* p) {
-    while (j->reste < CHEVALETS && !estVidePaquet(p)) {
-        char l = piocherLettreduPaquet(p);
-        if (l == '\0') break;
-        ajouterLettreMain(j, l);
+// Lit une ligne sans le retour à la ligne ni les espaces finaux. Renvoie 0 si l'entrée est fermée.
+static int lireLigne(char* buf, int taille) {
+    if (fgets(buf, taille, stdin) == NULL) return 0;
+    size_t n = strlen(buf);
+    while (n > 0 && (buf[n - 1] == '\n' || buf[n - 1] == '\r' || buf[n - 1] == ' ')) {
+        buf[--n] = '\0';
     }
+    return 1;
 }
 
-// Joue le tour du joueur `j` (son adversaire `adversaire` est nécessaire pour l'action Octo
-// Adversaire). Renvoie 1 si un coup a réellement été joué, 0 si le joueur a passé ou si le
-// coup tenté a été refusé.
-static int jouerTour(Joueur* j, Joueur* adversaire, Rail* rail, Paquet* paquet, int numero) {
+// Renvoie -1 si l'entrée est fermée, 0 si le joueur passe, 1 pour un coup joué, 2 pour un Octo Verso.
+static int jouerTour(Joueur* j, Rail* rail, Paquet* paquet, int numero) {
     printf("\n--- Tour du joueur %d ---\n", numero);
+    afficherRail(rail);
     printf("Main : ");
     afficherMainJoueur(j);
-    printf("Rail R : ");
-    afficherRailRecto(rail);
-    printf("Rail V : ");
-    afficherRailVerso(rail);
-    printf("Action (4=mot de 4 lettres, 2=deux lettres, 8=octo verso, a=octo adversaire, e=echange, p=passer) : ");
+    printf("Coup (ex : R (AB)CDE ou V CDE(AB)), - pour passer : ");
 
-    char action = 'p';
-    if (scanf(" %c", &action) != 1) {
-        action = 'p';
+    char saisie[64];
+    while (lireLigne(saisie, sizeof saisie)) {
+        if (strcmp(saisie, "-") == 0) {
+            char l = piocherLettreduPaquet(paquet);
+            if (l != '\0') {
+                ajouterLettreMain(j, l);
+                printf("Le joueur %d passe et pioche une lettre.\n", numero);
+            }
+            else {
+                printf("Le joueur %d passe (paquet vide).\n", numero);
+            }
+            return 0;
+        }
+
+        int avant = j->reste;
+        int r = jouerCoup(j, rail, saisie);
+        if (r > 0) {
+            printf("Coup accepte : %d lettre(s) posee(s), autant de tuiles sortent du rail.\n", avant - j->reste);
+            if (r == 2) printf("OCTO VERSO ! Le joueur %d rejoue.\n", numero);
+            return r;
+        }
+        printf("Coup invalide, reessayez (- pour passer) : ");
     }
-
-    int joue = 0;
-    switch (action) {
-        case '4':
-            printf("Mot (4 lettres) : ");
-            joue = proposerMots4Lettres(j, rail);
-            if (!joue) printf("Coup invalide, tour passe.\n");
-            break;
-        case '2':
-            printf("Direction (G/D) et 2 lettres : ");
-            joue = propose2Lettres(j, rail);
-            if (!joue) printf("Coup invalide, tour passe.\n");
-            break;
-        case '8':
-            printf("Mot (8 lettres) : ");
-            joue = proposerOctoVerso(j, rail);
-            if (!joue) printf("Coup invalide, tour passe.\n");
-            break;
-        case 'a':
-            printf("Mot (8 lettres, pioche chez l'adversaire) : ");
-            joue = proposerOctoAdversaire(j, adversaire, rail);
-            if (!joue) printf("Coup invalide, tour passe.\n");
-            break;
-        case 'e':
-            printf("Lettre a echanger : ");
-            echangeChevalet(j, paquet);
-            joue = 1; // l'echange n'est pas un "coup" a proprement parler, mais fait avancer la partie
-            break;
-        default:
-            printf("Tour passe.\n");
-            break;
-    }
-
-    completerMain(j, paquet);
-    return joue;
+    return -1;
 }
 
-int main() {
+int main(void) {
     srand((unsigned int)time(NULL));
+    // Sans buffer : les invites s'affichent avant la saisie même si la sortie est redirigée.
+    setvbuf(stdout, NULL, _IONBF, 0);
 
-    Rail* rail = (Rail*)malloc(sizeof(Rail));
-    Paquet* paquet = (Paquet*)malloc(sizeof(Paquet));
-    Joueur* j1 = (Joueur*)malloc(sizeof(Joueur));
-    Joueur* j2 = (Joueur*)malloc(sizeof(Joueur));
-
-    // Vérification de l'allocation
-    if (rail == NULL || paquet == NULL || j1 == NULL || j2 == NULL) {
-        printf("Erreur d'allocation de memoire\n");
+    Paquet paquet;
+    Joueur j1, j2;
+    Joueur* joueurs[2] = { &j1, &j2 };
+    initPaquet(&paquet);
+    initJoueur(&j1);
+    initJoueur(&j2);
+    if (paquet.chevalet == NULL || j1.chevalet == NULL || j2.chevalet == NULL) {
         return 1;
     }
 
-    // Initialisation des éléments du jeu
-    initRail(rail);
-    initPaquet(paquet);
-    initJoueur(j1);
-    initJoueur(j2);
-
-    distribuerPaquet(paquet, j1);
-    distribuerPaquet(paquet, j2);
+    distribuerPaquet(&paquet, &j1);
+    distribuerPaquet(&paquet, &j2);
 
     printf("=== Octo Verso ===\n");
-    printf("1 : ");
-    afficherMainJoueur(j1);
-    printf("2 : ");
-    afficherMainJoueur(j2);
-
-    // Mot d'ouverture : chaque joueur propose un premier mot de 4 lettres.
-    printf("Joueur 1, proposez votre premier mot de 4 lettres : ");
-    while (proposerMots4Lettres(j1, rail) != 1) {
-        printf("Mot invalide, reessayez : ");
-    }
-    printf("Joueur 2, proposez votre premier mot de 4 lettres : ");
-    while (proposerMots4Lettres(j2, rail) != 1) {
-        printf("Mot invalide, reessayez : ");
-    }
-    completerMain(j1, paquet);
-    completerMain(j2, paquet);
-
-    int joueurCourant = determinerPremierJoueur(j1, j2);
-    afficherSituation(j1, j2, rail);
-
-    // Partie : se termine quand le paquet est vide ET qu'un joueur n'a plus de lettres, ou
-    // que les deux joueurs passent coup sur coup une fois le paquet vide (sinon, deux joueurs
-    // qui ne feraient que passer garderaient la partie ouverte indéfiniment).
-    int passesConsecutifs = 0;
-    while (!estVidePaquet(paquet) || (!estVideMain(j1) && !estVideMain(j2))) {
-        int aJoue;
-        if (joueurCourant == 0) {
-            aJoue = jouerTour(j1, j2, rail, paquet, 1);
-        } else {
-            aJoue = jouerTour(j2, j1, rail, paquet, 2);
+    char saisie[64];
+    int entreeFermee = 0;
+    for (int i = 0; i < 2 && !entreeFermee; i++) {
+        printf("\n%d : ", i + 1);
+        afficherMainJoueur(joueurs[i]);
+        printf("Joueur %d, votre mot d'ouverture (4 lettres) : ", i + 1);
+        for (;;) {
+            if (!lireLigne(saisie, sizeof saisie)) {
+                entreeFermee = 1;
+                break;
+            }
+            if (jouerMotOuverture(joueurs[i], saisie)) break;
+            printf("Mot invalide, reessayez : ");
         }
-        passesConsecutifs = aJoue ? 0 : passesConsecutifs + 1;
+    }
 
-        if (estVidePaquet(paquet) && passesConsecutifs >= 2) {
-            break;
+    int gagnant = -1;
+    if (!entreeFermee) {
+        // Le mot le plus petit alphabétiquement est placé à gauche du rail, et son joueur commence.
+        int courant = determinerPremierJoueur(&j1, &j2);
+        Rail rail;
+        initRail(&rail, joueurs[courant]->mot, joueurs[1 - courant]->mot);
+        printf("\nLe rail est forme : le joueur %d commence.\n", courant + 1);
+
+        // Deux passes de suite une fois le paquet vide terminent la partie : sans cette règle,
+        // deux joueurs bloqués passeraient indéfiniment.
+        int passes = 0;
+        for (;;) {
+            int r = jouerTour(joueurs[courant], &rail, &paquet, courant + 1);
+            if (r < 0) break;
+            if (estVideMain(joueurs[courant])) {
+                gagnant = courant;
+                break;
+            }
+            passes = (r == 0) ? passes + 1 : 0;
+            if (passes >= 2 && estVidePaquet(&paquet)) break;
+            if (r != 2) courant = 1 - courant;
         }
-        joueurCourant = 1 - joueurCourant;
+
+        printf("\n=== Fin de partie ===\n");
+        printf("Lettres restantes - Joueur 1 : %d, Joueur 2 : %d\n", j1.reste, j2.reste);
+        if (gagnant < 0 && j1.reste != j2.reste) {
+            gagnant = (j1.reste < j2.reste) ? 0 : 1;
+        }
+        if (gagnant >= 0) printf("Le joueur %d gagne !\n", gagnant + 1);
+        else printf("Egalite !\n");
     }
 
-    printf("\n=== Fin de partie ===\n");
-    printf("Lettres restantes - Joueur 1 : %d, Joueur 2 : %d\n", j1->reste, j2->reste);
-    if (j1->reste < j2->reste) {
-        printf("Le joueur 1 gagne !\n");
-    } else if (j2->reste < j1->reste) {
-        printf("Le joueur 2 gagne !\n");
-    } else {
-        printf("Egalite !\n");
-    }
-
-    // Libère l'allocation
-    free(rail);
-    free(paquet);
-    free(j1);
-    free(j2);
-    return 0;
+    libererJoueur(&j1);
+    libererJoueur(&j2);
+    libererPaquet(&paquet);
+    return entreeFermee ? 1 : 0;
 }
